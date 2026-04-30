@@ -67,12 +67,12 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
         run: |
-          gh workflow run triage.yml \
+          RUN_URL=$(gh workflow run triage.yml \
             --repo "$DISPATCH_REPO" \
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD"
-          echo "::notice::Dispatched triage → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/triage.yml"
+            --field event_payload="$EVENT_PAYLOAD")
+          echo "::notice::Dispatched triage → ${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/triage.yml}"
 
   dispatch-code:
     runs-on: ubuntu-latest
@@ -106,12 +106,12 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
         run: |
-          gh workflow run code.yml \
+          RUN_URL=$(gh workflow run code.yml \
             --repo "$DISPATCH_REPO" \
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD"
-          echo "::notice::Dispatched code → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/code.yml"
+            --field event_payload="$EVENT_PAYLOAD")
+          echo "::notice::Dispatched code → ${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/code.yml}"
 
   dispatch-review:
     runs-on: ubuntu-latest
@@ -153,12 +153,12 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
         run: |
-          gh workflow run review.yml \
+          RUN_URL=$(gh workflow run review.yml \
             --repo "$DISPATCH_REPO" \
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD"
-          echo "::notice::Dispatched review → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/review.yml"
+            --field event_payload="$EVENT_PAYLOAD")
+          echo "::notice::Dispatched review → ${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/review.yml}"
 
   dispatch-fix-bot:
     runs-on: ubuntu-latest
@@ -197,13 +197,13 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
         run: |
-          gh workflow run fix.yml \
+          RUN_URL=$(gh workflow run fix.yml \
             --repo "$DISPATCH_REPO" \
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD" \
-            --field trigger_source="bot"
-          echo "::notice::Dispatched fix (bot) → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml"
+            --field trigger_source="bot")
+          echo "::notice::Dispatched fix (bot) → ${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml}"
 
   dispatch-fix-human:
     runs-on: ubuntu-latest
@@ -255,10 +255,10 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
         run: |
-          gh workflow run fix.yml \
+          RUN_URL=$(gh workflow run fix.yml \
             --repo "$DISPATCH_REPO" \
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD" \
-            --field trigger_source="human"
-          echo "::notice::Dispatched fix (human) → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml"
+            --field trigger_source="human")
+          echo "::notice::Dispatched fix (human) → ${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml}"
