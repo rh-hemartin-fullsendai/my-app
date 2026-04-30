@@ -21,7 +21,11 @@ func main() {
 	if err := initDB(dbPath); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer closeDB()
+	defer func() {
+		if err := closeDB(); err != nil {
+			log.Printf("closing database: %v", err)
+		}
+	}()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
