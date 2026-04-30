@@ -5,12 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
-)
-
-var (
-	counter   int
-	counterMu sync.Mutex
 )
 
 func main() {
@@ -18,6 +12,16 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "counter.db"
+	}
+
+	if err := initDB(dbPath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer closeDB()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
@@ -33,10 +37,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func counterHandler(w http.ResponseWriter, r *http.Request) {
-	counterMu.Lock()
-	defer counterMu.Unlock()
+	value, err := getCounter()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		log.Printf("Error getting counter: %v", err)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, "%d", counter)
+	fmt.Fprintf(w, "%d", value)
 }
 
 func counterIncrementHandler(w http.ResponseWriter, r *http.Request) {
@@ -44,9 +52,12 @@ func counterIncrementHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	counterMu.Lock()
-	defer counterMu.Unlock()
-	counter++
+	value, err := incrementCounter()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		log.Printf("Error incrementing counter: %v", err)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, "%d", counter)
+	fmt.Fprintf(w, "%d", value)
 }
