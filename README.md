@@ -9,7 +9,7 @@ A simple Go web application that serves a static HTML page.
 ## Running the application
 
 ```bash
-go run main.go
+go run .
 ```
 
 The server starts on port `8080` by default. Open <http://localhost:8080> in
@@ -18,7 +18,7 @@ your browser to see the welcome page.
 To use a different port, set the `PORT` environment variable:
 
 ```bash
-PORT=3000 go run main.go
+PORT=3000 go run .
 ```
 
 ## Development
@@ -27,6 +27,7 @@ PORT=3000 go run main.go
 
 ```
 main.go        - HTTP server entry point
+db.go          - SQLite database helpers
 main_test.go   - Tests for the server
 index.html     - Static HTML page served at /
 ```
