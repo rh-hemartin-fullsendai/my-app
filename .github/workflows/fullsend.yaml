@@ -72,6 +72,7 @@ jobs:
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD"
+          echo "::notice::Dispatched triage → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/triage.yml"
 
   dispatch-code:
     runs-on: ubuntu-latest
@@ -110,6 +111,7 @@ jobs:
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD"
+          echo "::notice::Dispatched code → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/code.yml"
 
   dispatch-review:
     runs-on: ubuntu-latest
@@ -156,6 +158,7 @@ jobs:
             --field event_type="$EVENT_TYPE" \
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD"
+          echo "::notice::Dispatched review → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/review.yml"
 
   dispatch-fix-bot:
     runs-on: ubuntu-latest
@@ -200,6 +203,7 @@ jobs:
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD" \
             --field trigger_source="bot"
+          echo "::notice::Dispatched fix (bot) → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml"
 
   dispatch-fix-human:
     runs-on: ubuntu-latest
@@ -257,3 +261,4 @@ jobs:
             --field source_repo="$SOURCE_REPO" \
             --field event_payload="$EVENT_PAYLOAD" \
             --field trigger_source="human"
+          echo "::notice::Dispatched fix (human) → ${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml"
