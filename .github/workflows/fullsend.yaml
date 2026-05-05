@@ -1,8 +1,12 @@
 # fullsend shim workflow
-# Routes events to per-role agent dispatch workflows in .fullsend.
+# Routes events to agent workflows in .fullsend via the dispatch.yml workflow.
+#
+# Credentials: uses secrets.FULLSEND_DISPATCH_TOKEN to trigger dispatch.yml
+# in owner/.fullsend via workflow_dispatch. The dispatcher (running in .fullsend)
+# generates its own GitHub App tokens and scans for agent workflows to trigger.
 #
 # Security: pull_request_target runs the BASE branch version of this workflow,
-# preventing PRs from modifying it to exfiltrate the dispatch token.
+# preventing PRs from modifying it to exfiltrate credentials.
 # This shim never checks out PR code, so it is not vulnerable to "pwn request"
 # attacks (see: Trivy CVE-2026-33634, hackerbot-claw campaign).
 #
@@ -60,26 +64,40 @@ jobs:
             --arg iu "${ISSUE_HTML_URL:-}" \
             '{issue: {number: (if $in != "" then ($in | tonumber) else null end), html_url: (if $iu != "" then $iu else null end)}}')
           echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
-      - name: Dispatch triage
+      - name: Dispatch triage stage
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
-          WORKFLOW_TOKEN: ${{ github.token }}
           EVENT_PAYLOAD: ${{ steps.payload.outputs.json }}
           EVENT_TYPE: ${{ github.event_name }}
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
-          ITEM_NUMBER: ${{ github.event.issue.number }}
         run: |
-          RUN_URL=$(gh workflow run triage.yml \
+          DISPATCH_URL=$(gh workflow run dispatch.yml \
             --repo "$DISPATCH_REPO" \
-            --field event_type="$EVENT_TYPE" \
-            --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD")
-          LINK="${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/triage.yml}"
-          echo "::notice::Dispatched triage → ${LINK}"
-          GH_TOKEN="$WORKFLOW_TOKEN" gh issue comment "$ITEM_NUMBER" \
-            --repo "$SOURCE_REPO" \
-            --body "**fullsend triage** is working on this — [view logs](${LINK})" || true
+            -f stage=triage \
+            -f event_type="$EVENT_TYPE" \
+            -f source_repo="$SOURCE_REPO" \
+            -f event_payload="$EVENT_PAYLOAD")
+          echo "url=$DISPATCH_URL" >> "$GITHUB_OUTPUT"
+      - name: Post run links
+        if: always() && steps.dispatch.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHIM_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DISPATCH_URL: ${{ steps.dispatch.outputs.url }}
+          TARGET_NUMBER: ${{ github.event.issue.number }}
+          STAGE: triage
+        run: |
+          BODY="<!-- fullsend:run-links:${STAGE} -->"$'\n'
+          BODY+="**fullsend** \`${STAGE}\` agent dispatched"$'\n\n'
+          if [[ -n "${DISPATCH_URL}" ]]; then
+            BODY+="[shim run](${SHIM_URL}) · [agent run](${DISPATCH_URL})"
+          else
+            BODY+="[shim run](${SHIM_URL})"
+          fi
+          gh issue comment "$TARGET_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
 
   dispatch-code:
     runs-on: ubuntu-latest
@@ -105,26 +123,40 @@ jobs:
             --arg iu "${ISSUE_HTML_URL:-}" \
             '{issue: {number: (if $in != "" then ($in | tonumber) else null end), html_url: (if $iu != "" then $iu else null end)}}')
           echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
-      - name: Dispatch code
+      - name: Dispatch code stage
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
-          WORKFLOW_TOKEN: ${{ github.token }}
           EVENT_PAYLOAD: ${{ steps.payload.outputs.json }}
           EVENT_TYPE: ${{ github.event_name }}
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
-          ITEM_NUMBER: ${{ github.event.issue.number }}
         run: |
-          RUN_URL=$(gh workflow run code.yml \
+          DISPATCH_URL=$(gh workflow run dispatch.yml \
             --repo "$DISPATCH_REPO" \
-            --field event_type="$EVENT_TYPE" \
-            --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD")
-          LINK="${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/code.yml}"
-          echo "::notice::Dispatched code → ${LINK}"
-          GH_TOKEN="$WORKFLOW_TOKEN" gh issue comment "$ITEM_NUMBER" \
-            --repo "$SOURCE_REPO" \
-            --body "**fullsend code** is working on this — [view logs](${LINK})" || true
+            -f stage=code \
+            -f event_type="$EVENT_TYPE" \
+            -f source_repo="$SOURCE_REPO" \
+            -f event_payload="$EVENT_PAYLOAD")
+          echo "url=$DISPATCH_URL" >> "$GITHUB_OUTPUT"
+      - name: Post run links
+        if: always() && steps.dispatch.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHIM_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DISPATCH_URL: ${{ steps.dispatch.outputs.url }}
+          TARGET_NUMBER: ${{ github.event.issue.number }}
+          STAGE: code
+        run: |
+          BODY="<!-- fullsend:run-links:${STAGE} -->"$'\n'
+          BODY+="**fullsend** \`${STAGE}\` agent dispatched"$'\n\n'
+          if [[ -n "${DISPATCH_URL}" ]]; then
+            BODY+="[shim run](${SHIM_URL}) · [agent run](${DISPATCH_URL})"
+          else
+            BODY+="[shim run](${SHIM_URL})"
+          fi
+          gh issue comment "$TARGET_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
 
   dispatch-review:
     runs-on: ubuntu-latest
@@ -158,26 +190,40 @@ jobs:
             '{issue: {number: (if $in != "" then ($in | tonumber) else null end), html_url: (if $iu != "" then $iu else null end)},
               pull_request: {number: (if $pn != "" then ($pn | tonumber) else null end), html_url: (if $pu != "" then $pu else null end)}}')
           echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
-      - name: Dispatch review
+      - name: Dispatch review stage
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
-          WORKFLOW_TOKEN: ${{ github.token }}
           EVENT_PAYLOAD: ${{ steps.payload.outputs.json }}
           EVENT_TYPE: ${{ github.event_name }}
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
-          ITEM_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: |
-          RUN_URL=$(gh workflow run review.yml \
+          DISPATCH_URL=$(gh workflow run dispatch.yml \
             --repo "$DISPATCH_REPO" \
-            --field event_type="$EVENT_TYPE" \
-            --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD")
-          LINK="${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/review.yml}"
-          echo "::notice::Dispatched review → ${LINK}"
-          GH_TOKEN="$WORKFLOW_TOKEN" gh issue comment "$ITEM_NUMBER" \
-            --repo "$SOURCE_REPO" \
-            --body "**fullsend review** is working on this — [view logs](${LINK})" || true
+            -f stage=review \
+            -f event_type="$EVENT_TYPE" \
+            -f source_repo="$SOURCE_REPO" \
+            -f event_payload="$EVENT_PAYLOAD")
+          echo "url=$DISPATCH_URL" >> "$GITHUB_OUTPUT"
+      - name: Post run links
+        if: always() && steps.dispatch.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHIM_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DISPATCH_URL: ${{ steps.dispatch.outputs.url }}
+          TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          STAGE: review
+        run: |
+          BODY="<!-- fullsend:run-links:${STAGE} -->"$'\n'
+          BODY+="**fullsend** \`${STAGE}\` agent dispatched"$'\n\n'
+          if [[ -n "${DISPATCH_URL}" ]]; then
+            BODY+="[shim run](${SHIM_URL}) · [agent run](${DISPATCH_URL})"
+          else
+            BODY+="[shim run](${SHIM_URL})"
+          fi
+          gh issue comment "$TARGET_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
 
   dispatch-fix-bot:
     runs-on: ubuntu-latest
@@ -208,27 +254,22 @@ jobs:
             --arg brepo "${BASE_REPO}" \
             '{pull_request: {number: ($pn | tonumber), head: {ref: $hr, repo: {full_name: $hrepo}}, base: {ref: $br, repo: {full_name: $brepo}}}}')
           echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
-      - name: Dispatch fix (bot-triggered)
+      - name: Dispatch fix stage (bot-triggered)
         env:
           GH_TOKEN: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
-          WORKFLOW_TOKEN: ${{ github.token }}
           EVENT_PAYLOAD: ${{ steps.payload.outputs.json }}
           EVENT_TYPE: ${{ github.event_name }}
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
-          ITEM_NUMBER: ${{ github.event.pull_request.number }}
+          TRIGGER_USER: ${{ github.event.review.user.login }}
         run: |
-          RUN_URL=$(gh workflow run fix.yml \
+          gh workflow run dispatch.yml \
             --repo "$DISPATCH_REPO" \
-            --field event_type="$EVENT_TYPE" \
-            --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD" \
-            --field trigger_source="bot")
-          LINK="${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml}"
-          echo "::notice::Dispatched fix (bot) → ${LINK}"
-          GH_TOKEN="$WORKFLOW_TOKEN" gh issue comment "$ITEM_NUMBER" \
-            --repo "$SOURCE_REPO" \
-            --body "**fullsend fix** is working on this — [view logs](${LINK})" || true
+            -f stage=fix \
+            -f event_type="$EVENT_TYPE" \
+            -f source_repo="$SOURCE_REPO" \
+            -f event_payload="$EVENT_PAYLOAD" \
+            -f trigger_source="$TRIGGER_USER"
 
   dispatch-fix-human:
     runs-on: ubuntu-latest
@@ -272,24 +313,19 @@ jobs:
             --arg cb "${COMMENT_BODY:-}" \
             '{issue: {number: ($in | tonumber)}, comment: {body: $cb}}')
           echo "json=$PAYLOAD" >> "$GITHUB_OUTPUT"
-      - name: Dispatch fix (human-triggered)
+      - name: Dispatch fix stage (human-triggered)
         env:
           GH_TOKEN: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
-          WORKFLOW_TOKEN: ${{ github.token }}
           EVENT_PAYLOAD: ${{ steps.payload.outputs.json }}
           EVENT_TYPE: ${{ github.event_name }}
           SOURCE_REPO: ${{ github.repository }}
           DISPATCH_REPO: ${{ github.repository_owner }}/.fullsend
-          ITEM_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_USER: ${{ github.event.comment.user.login }}
         run: |
-          RUN_URL=$(gh workflow run fix.yml \
+          gh workflow run dispatch.yml \
             --repo "$DISPATCH_REPO" \
-            --field event_type="$EVENT_TYPE" \
-            --field source_repo="$SOURCE_REPO" \
-            --field event_payload="$EVENT_PAYLOAD" \
-            --field trigger_source="human")
-          LINK="${RUN_URL:-${GITHUB_SERVER_URL}/${DISPATCH_REPO}/actions/workflows/fix.yml}"
-          echo "::notice::Dispatched fix (human) → ${LINK}"
-          GH_TOKEN="$WORKFLOW_TOKEN" gh issue comment "$ITEM_NUMBER" \
-            --repo "$SOURCE_REPO" \
-            --body "**fullsend fix** is working on this — [view logs](${LINK})" || true
+            -f stage=fix \
+            -f event_type="$EVENT_TYPE" \
+            -f source_repo="$SOURCE_REPO" \
+            -f event_payload="$EVENT_PAYLOAD" \
+            -f trigger_source="$TRIGGER_USER"
