@@ -23,6 +23,12 @@ jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
-      - uses: ${{ github.repository_owner }}/.fullsend/.github/actions/dispatch@main
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository_owner }}/.fullsend
+          path: .fullsend-action
+          sparse-checkout: .github/actions/dispatch
+          token: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
+      - uses: ./.fullsend-action/.github/actions/dispatch
         with:
           dispatch_token: ${{ secrets.FULLSEND_DISPATCH_TOKEN }}
