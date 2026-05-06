@@ -37,7 +37,6 @@ jobs:
   dispatch-triage:
     runs-on: ubuntu-latest
     outputs:
-      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
       agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: triage-${{ github.event.issue.number || github.event.pull_request.number }}
@@ -82,13 +81,12 @@ jobs:
             -f event_type="$EVENT_TYPE" \
             -f source_repo="$SOURCE_REPO" \
             -f event_payload="$EVENT_PAYLOAD")
-          echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Dispatched triage → ${DISPATCH_URL}"
           echo "agent=triage" >> "$GITHUB_OUTPUT"
 
   dispatch-code:
     runs-on: ubuntu-latest
     outputs:
-      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
       agent: ${{ steps.dispatch.outputs.agent }}
     if: >-
       (github.event_name == 'issues' && github.event.action == 'labeled'
@@ -127,13 +125,12 @@ jobs:
             -f event_type="$EVENT_TYPE" \
             -f source_repo="$SOURCE_REPO" \
             -f event_payload="$EVENT_PAYLOAD")
-          echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Dispatched code → ${DISPATCH_URL}"
           echo "agent=code" >> "$GITHUB_OUTPUT"
 
   dispatch-review:
     runs-on: ubuntu-latest
     outputs:
-      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
       agent: ${{ steps.dispatch.outputs.agent }}
     # The review agent is NOT dispatched on pull_request_review events.
     # Bot changes_requested reviews dispatch the fix agent (dispatch-fix-bot).
@@ -180,13 +177,12 @@ jobs:
             -f event_type="$EVENT_TYPE" \
             -f source_repo="$SOURCE_REPO" \
             -f event_payload="$EVENT_PAYLOAD")
-          echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Dispatched review → ${DISPATCH_URL}"
           echo "agent=review" >> "$GITHUB_OUTPUT"
 
   dispatch-fix-bot:
     runs-on: ubuntu-latest
     outputs:
-      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
       agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
@@ -232,13 +228,12 @@ jobs:
             -f source_repo="$SOURCE_REPO" \
             -f event_payload="$EVENT_PAYLOAD" \
             -f trigger_source="$TRIGGER_USER")
-          echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Dispatched fix (bot) → ${DISPATCH_URL}"
           echo "agent=fix" >> "$GITHUB_OUTPUT"
 
   dispatch-fix-human:
     runs-on: ubuntu-latest
     outputs:
-      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
       agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: fix-${{ github.event.issue.number }}
@@ -297,7 +292,7 @@ jobs:
             -f source_repo="$SOURCE_REPO" \
             -f event_payload="$EVENT_PAYLOAD" \
             -f trigger_source="$TRIGGER_USER")
-          echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Dispatched fix (human) → ${DISPATCH_URL}"
           echo "agent=fix" >> "$GITHUB_OUTPUT"
 
   post-run-link:
@@ -309,12 +304,6 @@ jobs:
     steps:
       - name: Post run link comment
         env:
-          DISPATCH_URL: >-
-            ${{ needs.dispatch-triage.outputs.dispatch_url
-             || needs.dispatch-code.outputs.dispatch_url
-             || needs.dispatch-review.outputs.dispatch_url
-             || needs.dispatch-fix-bot.outputs.dispatch_url
-             || needs.dispatch-fix-human.outputs.dispatch_url }}
           AGENT: >-
             ${{ needs.dispatch-triage.outputs.agent
              || needs.dispatch-code.outputs.agent
@@ -328,11 +317,6 @@ jobs:
             echo "No dispatch or item number — skipping comment"
             exit 0
           fi
-          BODY="**fullsend ${AGENT}** is working on this"
-          BODY="${BODY}"$'\n'"- [shim workflow](${SHIM_URL})"
-          if [ -n "${DISPATCH_URL}" ]; then
-            BODY="${BODY}"$'\n'"- [agent logs](${DISPATCH_URL})"
-          fi
           gh issue comment "${ITEM_NUMBER}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --body "${BODY}"
+            --body "**fullsend ${AGENT}** is working on this — [view logs](${SHIM_URL})"
