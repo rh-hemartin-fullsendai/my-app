@@ -22,7 +22,6 @@ name: fullsend
 permissions:
   contents: read
   issues: write
-  issues: write
 
 on:
   issues:
