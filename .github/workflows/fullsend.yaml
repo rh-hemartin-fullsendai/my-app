@@ -22,6 +22,7 @@ name: fullsend
 permissions:
   contents: read
   issues: write
+  issues: write
 
 on:
   issues:
@@ -36,6 +37,9 @@ on:
 jobs:
   dispatch-triage:
     runs-on: ubuntu-latest
+    outputs:
+      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
+      agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: triage-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: true
@@ -84,6 +88,9 @@ jobs:
 
   dispatch-code:
     runs-on: ubuntu-latest
+    outputs:
+      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
+      agent: ${{ steps.dispatch.outputs.agent }}
     if: >-
       (github.event_name == 'issues' && github.event.action == 'labeled'
         && github.event.label.name == 'ready-to-code') ||
@@ -126,6 +133,9 @@ jobs:
 
   dispatch-review:
     runs-on: ubuntu-latest
+    outputs:
+      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
+      agent: ${{ steps.dispatch.outputs.agent }}
     # The review agent is NOT dispatched on pull_request_review events.
     # Bot changes_requested reviews dispatch the fix agent (dispatch-fix-bot).
     # All other review submissions (human approve/comment/etc.) are ignored —
@@ -176,6 +186,9 @@ jobs:
 
   dispatch-fix-bot:
     runs-on: ubuntu-latest
+    outputs:
+      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
+      agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -225,6 +238,9 @@ jobs:
 
   dispatch-fix-human:
     runs-on: ubuntu-latest
+    outputs:
+      dispatch_url: ${{ steps.dispatch.outputs.dispatch_url }}
+      agent: ${{ steps.dispatch.outputs.agent }}
     concurrency:
       group: fix-${{ github.event.issue.number }}
       cancel-in-progress: true
@@ -284,3 +300,40 @@ jobs:
             -f trigger_source="$TRIGGER_USER")
           echo "dispatch_url=${DISPATCH_URL}" >> "$GITHUB_OUTPUT"
           echo "agent=fix" >> "$GITHUB_OUTPUT"
+
+  post-run-link:
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs: [dispatch-triage, dispatch-code, dispatch-review, dispatch-fix-bot, dispatch-fix-human]
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Post run link comment
+        env:
+          DISPATCH_URL: >-
+            ${{ needs.dispatch-triage.outputs.dispatch_url
+             || needs.dispatch-code.outputs.dispatch_url
+             || needs.dispatch-review.outputs.dispatch_url
+             || needs.dispatch-fix-bot.outputs.dispatch_url
+             || needs.dispatch-fix-human.outputs.dispatch_url }}
+          AGENT: >-
+            ${{ needs.dispatch-triage.outputs.agent
+             || needs.dispatch-code.outputs.agent
+             || needs.dispatch-review.outputs.agent
+             || needs.dispatch-fix-bot.outputs.agent
+             || needs.dispatch-fix-human.outputs.agent }}
+          SHIM_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ITEM_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          if [ -z "${AGENT}" ] || [ -z "${ITEM_NUMBER}" ]; then
+            echo "No dispatch or item number — skipping comment"
+            exit 0
+          fi
+          BODY="**fullsend ${AGENT}** is working on this"
+          BODY="${BODY}"$'\n'"- [shim workflow](${SHIM_URL})"
+          if [ -n "${DISPATCH_URL}" ]; then
+            BODY="${BODY}"$'\n'"- [agent logs](${DISPATCH_URL})"
+          fi
+          gh issue comment "${ITEM_NUMBER}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --body "${BODY}"
