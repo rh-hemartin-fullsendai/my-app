@@ -58,11 +58,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Pull images
-      #   run: |
-      #     echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
-      #     podman pull ghcr.io/nvidia/openshell/supervisor:latest
-      #     podman pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+      - name: Pull images
+        run: |
+          START_TIME=$(date +%s%3N)
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman pull ghcr.io/nvidia/openshell/supervisor:latest
+          podman pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+          END_TIME=$(date +%s%3N)
+          ELAPSED=$(( END_TIME - START_TIME ))
+          echo "::notice::Image pull: ${ELAPSED}ms"
 
       - name: Start gateway
         run: |
