@@ -68,6 +68,8 @@ jobs:
         run: |
           HANDSHAKE_SECRET="ci-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 
+          START_TIME=$(date +%s%3N)
+
           OPENSHELL_SSH_HANDSHAKE_SECRET="${HANDSHAKE_SECRET}" \
           OPENSHELL_SUPERVISOR_IMAGE="ghcr.io/nvidia/openshell/supervisor:latest" \
           openshell-gateway \
@@ -88,6 +90,10 @@ jobs:
             sleep 2
           done
 
+          END_TIME=$(date +%s%3N)
+          ELAPSED=$(( END_TIME - START_TIME ))
+          echo "::notice::Gateway startup: ${ELAPSED}ms"
+
       - name: Register gateway with CLI
         run: |
           CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/openshell"
@@ -104,7 +110,12 @@ jobs:
           printf 'ci-gateway' > "${CONFIG_DIR}/active_gateway"
 
       - name: Create sandbox
-        run: openshell sandbox create --name smoke-test -- echo "sandbox is working"
+        run: |
+          START_TIME=$(date +%s%3N)
+          openshell sandbox create --name smoke-test -- echo "sandbox is working"
+          END_TIME=$(date +%s%3N)
+          ELAPSED=$(( END_TIME - START_TIME ))
+          echo "::notice::Sandbox create + exec: ${ELAPSED}ms"
 
       - name: Cleanup
         if: always()
