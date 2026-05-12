@@ -48,7 +48,7 @@ jobs:
       - name: Pull images
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
-          podman pull ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}
+          podman pull ghcr.io/nvidia/openshell/supervisor:latest
           podman pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
 
       - name: Install OpenShell
