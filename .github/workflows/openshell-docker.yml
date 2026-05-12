@@ -61,7 +61,7 @@ jobs:
             --disable-tls \
             --db-url "sqlite:/tmp/gateway.db?mode=rwc" \
             --sandbox-image "ghcr.io/nvidia/openshell-community/sandboxes/base:latest" \
-            --sandbox-image-pull-policy missing \
+            --sandbox-image-pull-policy IfNotPresent \
             --log-level info &
           echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
 
