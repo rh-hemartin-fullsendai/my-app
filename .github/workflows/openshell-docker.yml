@@ -56,6 +56,7 @@ jobs:
             --port 8080 \
             --health-port 8081 \
             --ssh-gateway-port 8080 \
+            --grpc-port 8082 \
             --drivers docker \
             --disable-tls \
             --db-url "sqlite:/tmp/gateway.db?mode=rwc" \
