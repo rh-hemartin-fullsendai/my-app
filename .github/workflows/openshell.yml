@@ -1,0 +1,110 @@
+name: OpenShell Sandbox
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  workflow_dispatch:
+
+env:
+  OPENSHELL_VERSION: v0.0.38
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          podman --version
+
+      - name: Configure rootless Podman
+        run: |
+          test -f /sys/fs/cgroup/cgroup.controllers || { echo "ERROR: cgroups v2 required"; exit 1; }
+          whoami_user="$(whoami)"
+          grep -q "^${whoami_user}:" /etc/subuid || sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "${whoami_user}"
+          podman system migrate
+          podman info
+
+      - name: Start Podman API service
+        run: |
+          SOCKET_PATH="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock"
+          if [ ! -S "${SOCKET_PATH}" ]; then
+            mkdir -p "$(dirname "${SOCKET_PATH}")"
+            podman system service --time=0 "unix://${SOCKET_PATH}" &
+            for i in $(seq 1 30); do
+              [ -S "${SOCKET_PATH}" ] && podman --url "unix://${SOCKET_PATH}" info >/dev/null 2>&1 && break
+              sleep 1
+            done
+            [ -S "${SOCKET_PATH}" ] || { echo "ERROR: Podman socket not ready"; exit 1; }
+          fi
+          echo "OPENSHELL_PODMAN_SOCKET=${SOCKET_PATH}" >> "$GITHUB_ENV"
+
+      - name: Install OpenShell
+        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="${OPENSHELL_VERSION}" sh
+
+      - name: Pull images
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman pull ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}
+          podman pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+
+      - name: Start gateway
+        run: |
+          HANDSHAKE_SECRET="ci-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+
+          OPENSHELL_SSH_HANDSHAKE_SECRET="${HANDSHAKE_SECRET}" \
+          OPENSHELL_SUPERVISOR_IMAGE="ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}" \
+          openshell-gateway \
+            --bind-address 0.0.0.0 \
+            --port 8080 \
+            --health-port 8081 \
+            --ssh-gateway-port 8080 \
+            --drivers podman \
+            --disable-tls \
+            --db-url "sqlite:/tmp/gateway.db?mode=rwc" \
+            --sandbox-image "ghcr.io/nvidia/openshell-community/sandboxes/base:latest" \
+            --sandbox-image-pull-policy missing \
+            --log-level info &
+          echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
+
+          elapsed=0
+          timeout=120
+          while [ "${elapsed}" -lt "${timeout}" ]; do
+            curl -sf http://127.0.0.1:8081/healthz >/dev/null 2>&1 && break
+            sleep 2
+            elapsed=$((elapsed + 2))
+          done
+          if [ "${elapsed}" -ge "${timeout}" ]; then
+            echo "ERROR: Gateway not healthy within ${timeout}s"
+            exit 1
+          fi
+
+      - name: Register gateway with CLI
+        run: |
+          CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/openshell"
+          mkdir -p "${CONFIG_DIR}/gateways/ci-gateway"
+          cat > "${CONFIG_DIR}/gateways/ci-gateway/metadata.json" <<'EOF'
+          {
+            "name": "ci-gateway",
+            "gateway_endpoint": "http://127.0.0.1:8080",
+            "is_remote": false,
+            "gateway_port": 8080,
+            "auth_mode": "plaintext"
+          }
+          EOF
+          printf 'ci-gateway' > "${CONFIG_DIR}/active_gateway"
+
+      - name: Create sandbox
+        run: openshell sandbox create --name smoke-test -- echo "sandbox is working"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          openshell sandbox delete smoke-test 2>/dev/null || true
+          kill "${GATEWAY_PID}" 2>/dev/null || true
