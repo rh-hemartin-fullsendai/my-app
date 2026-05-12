@@ -44,10 +44,19 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Install OpenShell
+      - name: Install OpenShell CLI
         run: |
           uv tool install openshell
           openshell --version
+
+      - name: Download openshell-gateway
+        run: |
+          gh release download --repo NVIDIA/OpenShell --pattern "openshell-gateway-x86_64-unknown-linux-gnu.tar.gz" --dir /tmp/openshell-gateway
+          tar xzf /tmp/openshell-gateway/openshell-gateway-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin
+          rm -rf /tmp/openshell-gateway
+          openshell-gateway --version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull images
         run: |
