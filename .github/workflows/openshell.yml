@@ -45,45 +45,14 @@ jobs:
           fi
           echo "OPENSHELL_PODMAN_SOCKET=${SOCKET_PATH}" >> "$GITHUB_ENV"
 
-      - name: Install OpenShell
-        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="${OPENSHELL_VERSION}" sh
-
       - name: Pull images
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
           podman pull ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}
           podman pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest
 
-      - name: Start gateway
-        run: |
-          HANDSHAKE_SECRET="ci-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
-
-          OPENSHELL_SSH_HANDSHAKE_SECRET="${HANDSHAKE_SECRET}" \
-          OPENSHELL_SUPERVISOR_IMAGE="ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}" \
-          openshell-gateway \
-            --bind-address 0.0.0.0 \
-            --port 8080 \
-            --health-port 8081 \
-            --ssh-gateway-port 8080 \
-            --drivers podman \
-            --disable-tls \
-            --db-url "sqlite:/tmp/gateway.db?mode=rwc" \
-            --sandbox-image "ghcr.io/nvidia/openshell-community/sandboxes/base:latest" \
-            --sandbox-image-pull-policy missing \
-            --log-level info &
-          echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
-
-          elapsed=0
-          timeout=120
-          while [ "${elapsed}" -lt "${timeout}" ]; do
-            curl -sf http://127.0.0.1:8081/healthz >/dev/null 2>&1 && break
-            sleep 2
-            elapsed=$((elapsed + 2))
-          done
-          if [ "${elapsed}" -ge "${timeout}" ]; then
-            echo "ERROR: Gateway not healthy within ${timeout}s"
-            exit 1
-          fi
+      - name: Install OpenShell
+        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="${OPENSHELL_VERSION}" sh
 
       - name: Register gateway with CLI
         run: |
