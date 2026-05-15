@@ -44,3 +44,8 @@ go test ./...
 go build -o my-app .
 ./my-app
 ```
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for coding style guidelines
+and expectations for pull requests.
