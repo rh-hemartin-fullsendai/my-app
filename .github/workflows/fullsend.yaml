@@ -50,6 +50,9 @@ jobs:
     uses: rh-hemartin-fullsendai/.fullsend/.github/workflows/dispatch.yml@main
     with:
       event_action: ${{ github.event.action }}
+    secrets:
+      FULLSEND_GCP_WIF_PROVIDER: ${{ secrets.FULLSEND_GCP_WIF_PROVIDER }}
+      FULLSEND_GCP_PROJECT_ID: ${{ secrets.FULLSEND_GCP_PROJECT_ID }}
 
   stop-fix:
     if: >-
