@@ -22,10 +22,12 @@
 name: fullsend
 
 permissions:
+  contents: write
+  pull-requests: write
   actions: write
   id-token: write
-  contents: read
-  pull-requests: read
+  issues: write
+  packages: read
 
 on:
   issues:
